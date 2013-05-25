@@ -110,7 +110,7 @@ __DATA__
            [% result.title %] <br />
            <a href="[% result.url %]"><img src="[% result.image %]" /></a>
            </td>
-           [% IF loop.index % 5 == 4 %] </tr> [% END %]
+           [% IF loop.index % 5 == 4 || loop.is_last %] </tr> [% END %]
         [% END %]
         </table>
         <footer>Powered by <a href="http://amon.64p.org/">Amon2::Lite</a></footer>
