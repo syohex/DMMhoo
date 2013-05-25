@@ -6,22 +6,25 @@ use File::Basename;
 use lib File::Spec->catdir(dirname(__FILE__), 'extlib', 'lib', 'perl5');
 use lib File::Spec->catdir(dirname(__FILE__), 'lib');
 use Amon2::Lite;
+use Config::Pit;
+use WebService::DMM;
+use Encode;
 
 our $VERSION = '0.01';
 
+my $config = pit_get('dmm.co.jp', require => {
+    affiliate_id => 'DMM Affiliate ID',
+    api_id       => 'DMM API ID',
+});
+
+my $dmm = WebService::DMM->new(
+    affiliate_id => $config->{affiliate_id},
+    api_id       => $config->{api_id},
+);
+
 # put your configuration here
 sub load_config {
-    my $c = shift;
-
-    my $mode = $c->mode_name || 'development';
-
-    +{
-        'DBI' => [
-            'dbi:SQLite:dbname=$mode.db',
-            '',
-            '',
-        ],
-    }
+    +{}
 }
 
 get '/' => sub {
@@ -29,14 +32,34 @@ get '/' => sub {
     return $c->render('index.tt');
 };
 
+post '/search' => sub {
+    my $c = shift;
+
+    my $query = $c->req->param('query');
+
+    my $res = $dmm->search(
+        site    => 'DMM.co.jp',
+        service => 'digital',
+        floor   => 'videoa',
+        hits    => 100,
+        keyword => Encode::decode_utf8($query),
+    );
+
+    my @results;
+    for my $item (@{$res->items}) {
+        push @results, {
+            title => $item->title,
+            image => $item->image('small'),
+            url   => $item->affiliate_url,
+        };
+    }
+
+    return $c->render('search.tt' => { query => $query, results => \@results });
+};
+
 # load plugins
 __PACKAGE__->load_plugin('Web::CSRFDefender');
-# __PACKAGE__->load_plugin('DBI');
-# __PACKAGE__->load_plugin('Web::FillInFormLite');
-# __PACKAGE__->load_plugin('Web::JSON');
-
 __PACKAGE__->enable_session();
-
 __PACKAGE__->to_app(handle_static => 1);
 
 __DATA__
@@ -56,15 +79,44 @@ __DATA__
 <body>
     <div class="container">
         <header><h1>DMMhoo</h1></header>
-        <section class="row">
-            This is a DMMhoo
-        </section>
+        <form method="post" action="[% uri_for('/search') %]">
+            <input type="text" name="query" />
+            <input type="submit" value="Send" />
+        </form>
         <footer>Powered by <a href="http://amon.64p.org/">Amon2::Lite</a></footer>
     </div>
 </body>
 </html>
 
-@@ /static/js/main.js
+@@ search.tt
+
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>DMMhoo</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="http://twitter.github.com/bootstrap/1.4.0/bootstrap.min.css">
+    <link rel="stylesheet" href="[% uri_for('/static/css/main.css') %]">
+</head>
+<body>
+    <div class="container">
+    <header><h1>Result [% query %]<a href="/">(戻る)</a></h1></header>
+    <table>
+        [% FOR result IN results %]
+           [% IF loop.index % 5 == 0 %] <tr> [% END %]
+           <td>
+           [% result.title %] <br />
+           <a href="[% result.url %]"><img src="[% result.image %]" /></a>
+           </td>
+           [% IF loop.index % 5 == 4 %] </tr> [% END %]
+        [% END %]
+        </table>
+        <footer>Powered by <a href="http://amon.64p.org/">Amon2::Lite</a></footer>
+    </div>
+</body>
+</html>
 
 @@ /static/css/main.css
 footer {
