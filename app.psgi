@@ -32,10 +32,17 @@ get '/' => sub {
     return $c->render('index.tt');
 };
 
-post '/search' => sub {
+any '/search' => sub {
     my $c = shift;
 
     my $query = $c->req->param('query');
+    my $page = $c->req->param('page') || 1;
+
+    if ($query) {
+        $c->session->set(query => $query);
+    } else {
+        $query = $c->session->get('query');
+    }
 
     my $res = $dmm->search(
         site    => 'DMM.co.jp',
@@ -43,6 +50,7 @@ post '/search' => sub {
         floor   => 'videoa',
         hits    => 100,
         keyword => Encode::decode_utf8($query),
+        offset  => (($page - 1) * 100) + 1,
     );
 
     my @results;
@@ -54,7 +62,12 @@ post '/search' => sub {
         };
     }
 
-    return $c->render('search.tt' => { query => $query, results => \@results });
+    my $total_count = int($res->total_count / 100) + 1;
+    return $c->render('search.tt' => {
+        query   => $query,
+        results => \@results,
+        pages   => $total_count,
+    });
 };
 
 # load plugins
@@ -113,6 +126,11 @@ __DATA__
            [% IF loop.index % 5 == 4 || loop.is_last %] </tr> [% END %]
         [% END %]
         </table>
+        <p>
+        [% FOR page IN [1..$pages] %]
+           <a href="/search?page=[% page %]">[% page %]</a>&nbsp;
+        [% END %]
+        </p>
         <footer>Powered by <a href="http://amon.64p.org/">Amon2::Lite</a></footer>
     </div>
 </body>
